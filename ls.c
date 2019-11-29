@@ -220,6 +220,158 @@ vsf_ls_populate_dir_list(struct mystr_list* p_list,
 }
 
 int
+vsf_prefix_passes_filter(const struct mystr* p_filename_str,
+                           const struct mystr* p_filter_str,
+                           unsigned int* iters)
+{
+  /* A simple routine to match a filename against a pattern.
+   * This routine is used instead of e.g. fnmatch(3), because we should be
+   * reluctant to trust the latter. fnmatch(3) involves _lots_ of string
+   * parsing and handling. There is broad potential for any given fnmatch(3)
+   * implementation to be buggy.
+   *
+   * Currently supported pattern(s):
+   * - any number of wildcards, "*" or "?"
+   * - {,} syntax (not nested)
+   *
+   * Note that pattern matching is only supported within the last path
+   * component. For example, searching for /?/b/c will work, but searching
+   * for /a/?/c will not.
+   */
+  struct mystr filter_remain_str = INIT_MYSTR;
+  struct mystr name_remain_str = INIT_MYSTR;
+  struct mystr temp_str = INIT_MYSTR;
+  struct mystr brace_list_str = INIT_MYSTR;
+  struct mystr new_filter_str = INIT_MYSTR;
+  int ret = 0;
+  char last_token = 0;
+  int must_match_at_current_pos = 1;
+  str_copy(&filter_remain_str, p_filter_str);
+  str_copy(&name_remain_str, p_filename_str);
+
+  while (!str_isempty(&filter_remain_str) && *iters < VSFTP_MATCHITERS_MAX)
+  {
+    static struct mystr s_match_needed_str;
+    /* Locate next special token */
+    struct str_locate_result locate_result =
+      str_locate_chars(&filter_remain_str, "*?{");
+    (*iters)++;
+    /* Isolate text leading up to token (if any) - needs to be matched */
+    if (locate_result.found)
+    {
+      unsigned int indexx = locate_result.index;
+      str_left(&filter_remain_str, &s_match_needed_str, indexx);
+      str_mid_to_end(&filter_remain_str, &temp_str, indexx + 1);
+      str_copy(&filter_remain_str, &temp_str);
+      last_token = locate_result.char_found;
+    }
+    else
+    {
+      /* No more tokens. Must match remaining filter string exactly. */
+      str_copy(&s_match_needed_str, &filter_remain_str);
+      str_empty(&filter_remain_str);
+      last_token = 0;
+    }
+    if (!str_isempty(&s_match_needed_str))
+    {
+      /* Need to match something.. could be a match which has to start at
+       * current position, or we could allow it to start anywhere
+       */
+      unsigned int indexx;
+      locate_result = str_locate_str(&name_remain_str, &s_match_needed_str);
+      if (!locate_result.found)
+      {
+        /* Fail */
+        goto out;
+      }
+      indexx = locate_result.index;
+      if (must_match_at_current_pos && indexx > 0)
+      {
+        goto out;
+      }
+      // Found, get out
+      ret = 1;
+      goto out;
+      /* Chop matched string out of remainder */
+      //str_mid_to_end(&name_remain_str, &temp_str,
+      //               indexx + str_getlen(&s_match_needed_str));
+      //str_copy(&name_remain_str, &temp_str);
+    }
+    if (last_token == '?')
+    {
+      if (str_isempty(&name_remain_str))
+      {
+        goto out;
+      }
+      str_right(&name_remain_str, &temp_str, str_getlen(&name_remain_str) - 1);
+      str_copy(&name_remain_str, &temp_str);
+      must_match_at_current_pos = 1;
+    }
+    else if (last_token == '{')
+    {
+      struct str_locate_result end_brace =
+        str_locate_char(&filter_remain_str, '}');
+      must_match_at_current_pos = 1;
+      if (end_brace.found)
+      {
+        str_split_char(&filter_remain_str, &temp_str, '}');
+        str_copy(&brace_list_str, &filter_remain_str);
+        str_copy(&filter_remain_str, &temp_str);
+        str_split_char(&brace_list_str, &temp_str, ',');
+        while (!str_isempty(&brace_list_str))
+        {
+          str_copy(&new_filter_str, &brace_list_str);
+          str_append_str(&new_filter_str, &filter_remain_str);
+          if (vsf_prefix_passes_filter(&name_remain_str, &new_filter_str,
+                                         iters))
+          {
+            ret = 1;
+            goto out;
+          }
+          str_copy(&brace_list_str, &temp_str);
+          str_split_char(&brace_list_str, &temp_str, ',');
+        }
+        goto out;
+      }
+      else if (str_isempty(&name_remain_str) ||
+               str_get_char_at(&name_remain_str, 0) != '{')
+      {
+        goto out;
+      }
+      else
+      {
+        str_right(&name_remain_str, &temp_str,
+                  str_getlen(&name_remain_str) - 1);
+        str_copy(&name_remain_str, &temp_str);
+      }
+    }
+    else
+    {
+      must_match_at_current_pos = 0;
+    }
+  }
+  /* Any incoming string left means no match unless we ended on the correct
+   * type of wildcard.
+   */
+  if (str_getlen(&name_remain_str) > 0 && last_token != '*')
+  {
+    goto out;
+  }
+  /* OK, a match */
+  ret = 1;
+  if (*iters == VSFTP_MATCHITERS_MAX) {
+    ret = 0;
+  }
+out:
+  str_free(&filter_remain_str);
+  str_free(&name_remain_str);
+  str_free(&temp_str);
+  str_free(&brace_list_str);
+  str_free(&new_filter_str);
+  return ret;
+}
+
+int
 vsf_filename_passes_filter(const struct mystr* p_filename_str,
                            const struct mystr* p_filter_str,
                            unsigned int* iters)

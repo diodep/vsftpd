@@ -51,7 +51,7 @@ vsf_access_check_file(const struct mystr* p_filename_str)
       str_alloc_text(&s_prefix_str, tunable_allow_prefix);
     }
     iters = 0;
-    if (vsf_filename_passes_filter(p_filename_str, &s_prefix_str, &iters) == 0)
+    if (vsf_prefix_passes_filter(p_filename_str, &s_prefix_str, &iters) == 0)
     {
       return 0;
     }
@@ -99,12 +99,12 @@ vsf_access_check_file_visible(const struct mystr* p_filename_str)
       str_alloc_text(&s_prefix_str, tunable_allow_prefix);
     }
     iters = 0;
-    if (vsf_filename_passes_filter(p_filename_str, &s_prefix_str, &iters) == 0)
+    if (vsf_prefix_passes_filter(p_filename_str, &s_prefix_str, &iters) == 0)
     {
       return 0;
     }
   }
-  
+
   return 1;
 }
 
