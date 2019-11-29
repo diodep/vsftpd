@@ -133,6 +133,7 @@ const char* tunable_listen_address6;
 const char* tunable_cmds_allowed;
 const char* tunable_cmds_denied;
 const char* tunable_hide_file;
+const char* tunable_allow_prefix;
 const char* tunable_deny_file;
 const char* tunable_user_sub_token;
 const char* tunable_email_password_file;

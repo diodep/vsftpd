@@ -169,6 +169,7 @@ parseconf_str_array[] =
   { "listen_address6", &tunable_listen_address6 },
   { "cmds_allowed", &tunable_cmds_allowed },
   { "hide_file", &tunable_hide_file },
+  { "allow_prefix", &tunable_allow_prefix },
   { "deny_file", &tunable_deny_file },
   { "user_sub_token", &tunable_user_sub_token },
   { "email_password_file", &tunable_email_password_file },
